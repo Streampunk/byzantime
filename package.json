@@ -1,0 +1,27 @@
+{
+  "name": "matexicator",
+  "version": "0.0.1",
+  "description": "REST API for reading and writing MXF data.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Streampunk/matexicator.git"
+  },
+  "keywords": [
+    "MXF",
+    "REST"
+  ],
+  "author": "Streampunk Media",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Streampunk/matexicator/issues"
+  },
+  "homepage": "https://github.com/Streampunk/matexicator#readme",
+  "dependencies": {
+    "express": "^4.16.2",
+    "kelvinadon": "^0.2.3"
+  }
+}
