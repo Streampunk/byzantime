@@ -1,7 +1,7 @@
-# matexicator
-REST API for reading and writing MXF data.
+# byzantime
+REST API for access to parts of professional media files by media timing reference, mapping between bytes and time, hence _byzantime_.
 
-Quick hack project to see how easy it is to use the Streampunk [kelvinadon](https://github.com/Streampunk/kelvinadon) MXF streaming library to create a REST API for accessing data in an MXF file.
+Currently a quick hack project to see how easy it is to use the Streampunk [kelvinadon](https://github.com/Streampunk/kelvinadon) MXF streaming library to create a REST API for accessing data in an MXF file.
 
 ## Status, support and further development
 
@@ -11,4 +11,4 @@ Contributions can be made via pull requests and will be considered by the author
 
 ## License
 
-This software is released under the Apache 2.0 license. Copyright 2017 Streampunk Media Ltd.
+This software is released under the Apache 2.0 license. Copyright 2018 Streampunk Media Ltd.
