@@ -1,7 +1,7 @@
 {
-  "name": "matexicator",
+  "name": "byzantime",
   "version": "0.0.1",
-  "description": "REST API for reading and writing MXF data.",
+  "description": "REST API for access to parts of professional media files by media timing reference.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
