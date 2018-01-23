@@ -16,13 +16,33 @@
 const express = require('express');
 const app = express();
 const fapp = express();
+const fs = require('fs');
+const util = require('util');
 var basePath = process.argv[2];
+const fsstat = util.promisify(fs.stat);
+const fsaccess = util.promisify(fs.access);
+const fsreaddir = util.promisify(fs.readdir);
 
-app.get('/', (req, res) => res.json({ fred: 'Hello World!' }));
+app.get('/', async (req, res) =>
+  try {
+    await 
+  } catch (e) {
 
-app.param('file', (req, res, next, file) => {
+  }
+));
+
+app.param('file', async (req, res, next, file) => {
   req.file = basePath + '/' + file;
-  next();
+  try {
+    await fsaccess(req.file, fs.R_OK);
+    var fileStat = await fsstat(req.file);
+    req.fileSize = fileStat.size;
+    console.log(`File ${req.file} has size ${req.fileSize}.`);
+    next();
+  } catch (e) {
+    res.status(404);
+    res.json({ status: 404, error : e, message: e.message });
+  }
 });
 
 app.use('/:file', fapp);
