@@ -4,7 +4,9 @@
   "description": "REST API for access to parts of professional media files by media timing reference.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tape test/*.js",
+    "lint": "eslint **/*.js",
+    "lint-fix": "eslint --fix **/*.js"
   },
   "repository": {
     "type": "git",
@@ -22,6 +24,14 @@
   "homepage": "https://github.com/Streampunk/matexicator#readme",
   "dependencies": {
     "express": "^4.16.2",
-    "kelvinadon": "^0.2.3"
+    "highland": "^2.11.1",
+    "ioredis": "^3.2.2",
+    "kelvinadon": "^0.2.3",
+    "yargs": "^11.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^4.9.0",
+    "eslint-config-google": "^0.9.1",
+    "tape": "^4.8.0"
   }
 }
