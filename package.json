@@ -27,6 +27,7 @@
     "highland": "^2.11.1",
     "ioredis": "^3.2.2",
     "kelvinadon": "^0.2.3",
+    "uuid": "^2.0.2",
     "yargs": "^11.0.0"
   },
   "devDependencies": {
