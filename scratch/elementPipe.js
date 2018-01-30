@@ -33,7 +33,7 @@ module.exports = function (position, elements) {
   let pipeSplit = x => {
     if (!blob) return H(resetBufs());
     if (position < blob.start) {
-      if (position + x.length < blob.start) {
+      if (position + x.length <= blob.start) {
         position += x.length;
         return H(resetBufs());
       } else {
@@ -44,11 +44,6 @@ module.exports = function (position, elements) {
     }
     if (position + x.length <= blob.end) {
       position += x.length;
-      if (position === blob.end) {
-        blob = blobs.shift();
-        position++;
-        return H(resetBufs());
-      }
       bufs.push(x);
       return H(resetBufs());
     } else {

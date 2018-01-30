@@ -62,7 +62,6 @@ test('Single element overlapping lots of boundaries', t => {
     .through(elementPipe(10, [{ start: 20, end: 1020 }]))
     .errors(e => { t.fail(e); })
     .toArray(a => {
-      console.log(a);
       t.equal(a.length, 11, 'produces an array length 11.');
       t.deepEqual(
         a.map(x => x.length),
@@ -98,3 +97,59 @@ test('Single element beyond than the stream', t => {
       t.end();
     });
 });
+
+test('Single element starting a few buffers in', t => {
+  H(c)
+    .through(elementPipe(10, [{ start: 350, end: 525 }]))
+    .errors(e => { t.fail(e); })
+    .toArray(a => {
+      t.equal(a.length, 3, 'creates three buffer.');
+      t.equal(a.reduce((x, y) => x + y.length, 0), 176, 'has combined values of 176.');
+      t.equal(a[0][0], (350-10) % 256, 'starts with the expected value.');
+      t.equal(a[2].slice(-1)[0], (525-10) % 256, 'last entry has expected value.');
+      t.end();
+    });
+});
+
+const expectedLengths = [2, 2, 1, 1];
+for ( let s = 0 ; s < 4 ; s++ ) {
+  test('Single element start crossing the bounbary', t => {
+    H(c)
+      .through(elementPipe(10, [{ start: s + 108, end : 120 }]))
+      .errors(e => { t.fail(e); })
+      .toArray(a => {
+        console.log(a);
+        t.equal(a.length, expectedLengths[s],
+          'number of buffers reduces as expected.');
+        t.equal(Buffer.concat(a).length, 13 - s,
+          'number of elements decreases from 13 to 10.');
+        t.equal(Buffer.concat(a).slice(-1)[0], (120-10)%256,
+          'last element is the same.');
+        if (a.length === 2) {
+          t.ok(a[0].slice(-1)[0] === a[1][0] - 1, 'buffer values are contiguous.');
+        }
+        t.end();
+      });
+  });
+}
+
+for ( let s = 0 ; s < 4 ; s++ ) {
+  test('Single element end crossing the bounbary', t => {
+    H(c)
+      .through(elementPipe(10, [{ start: 100, end : 108 + s }]))
+      .errors(e => { t.fail(e); })
+      .toArray(a => {
+        // console.log(a);
+        t.equal(a.length, expectedLengths[3 - s],
+          'number of buffers increases as expected.');
+        t.equal(Buffer.concat(a).length, 9 + s,
+          'number of elements increases from 9 to 12.');
+        t.equal(Buffer.concat(a).slice(-1)[0], 98 + s,
+          'last element is the same.');
+        if (a.length === 2) {
+          t.ok(a[0].slice(-1)[0] === a[1][0] - 1, 'buffer values are contiguous.');
+        }
+        t.end();
+      });
+  });
+}
