@@ -31,11 +31,16 @@ for ( let x = 0 ; x < 2048 ; x += 100) {
   c.push(b.slice(x, x + 100));
 }
 
+function arrayOfBuffers (a, t) {
+  t.ok(a.every(b => Buffer.isBuffer(b)), 'every array element is a buffer.');
+}
+
 test('Small short single element', t => {
   H(c)
     .through(elementPipe(10, [{ start: 12, end: 16 }]))
     .errors(e => { t.fail(e); })
     .toArray(a => {
+      arrayOfBuffers(a, t);
       t.deepEqual(a, [ Buffer.from([2, 3, 4, 5, 6]) ], 'produces expected element.');
       t.end();
     });
@@ -46,6 +51,7 @@ test('Single element overlapping one boundary', t => {
     .through(elementPipe(10, [{ start: 20, end: 120 }]))
     .errors(e => { t.fail(e); })
     .toArray(a => {
+      arrayOfBuffers(a, t);
       t.equal(a.length, 2, 'produces an array length 2.');
       t.deepEqual(a.map(x => x.length), [90, 11],
         'buffers are of expected length.');
@@ -62,6 +68,7 @@ test('Single element overlapping lots of boundaries', t => {
     .through(elementPipe(10, [{ start: 20, end: 1020 }]))
     .errors(e => { t.fail(e); })
     .toArray(a => {
+      arrayOfBuffers(a, t);
       t.equal(a.length, 11, 'produces an array length 11.');
       t.deepEqual(
         a.map(x => x.length),
@@ -80,6 +87,7 @@ test('Single element longer than the stream', t => {
     .through(elementPipe(10, [{ start: 2000, end: 2500 }]))
     .errors(e => { t.fail(e); })
     .toArray(a => {
+      arrayOfBuffers(a, t);
       let lastEl = a[a.length - 1];
       t.equal(lastEl[lastEl.length - 1], 0xff, 'last element of the buffer is 0xff.');
       t.ok(a.reduce((x, y) => x + y.length, 0) < 501,
@@ -93,6 +101,7 @@ test('Single element beyond than the stream', t => {
     .through(elementPipe(10, [{ start: 2100, end: 2500 }]))
     .errors(e => { t.fail(e); })
     .toArray(a => {
+      arrayOfBuffers(a, t);
       t.equal(a.length, 0, 'produces nothing.');
       t.end();
     });
@@ -103,6 +112,7 @@ test('Single element starting a few buffers in', t => {
     .through(elementPipe(10, [{ start: 350, end: 525 }]))
     .errors(e => { t.fail(e); })
     .toArray(a => {
+      arrayOfBuffers(a, t);
       t.equal(a.length, 3, 'creates three buffer.');
       t.equal(a.reduce((x, y) => x + y.length, 0), 176, 'has combined values of 176.');
       t.equal(a[0][0], (350-10) % 256, 'starts with the expected value.');
@@ -118,7 +128,7 @@ for ( let s = 0 ; s < 4 ; s++ ) {
       .through(elementPipe(10, [{ start: s + 108, end : 120 }]))
       .errors(e => { t.fail(e); })
       .toArray(a => {
-        console.log(a);
+        arrayOfBuffers(a, t);
         t.equal(a.length, expectedLengths[s],
           'number of buffers reduces as expected.');
         t.equal(Buffer.concat(a).length, 13 - s,
@@ -139,7 +149,7 @@ for ( let s = 0 ; s < 4 ; s++ ) {
       .through(elementPipe(10, [{ start: 100, end : 108 + s }]))
       .errors(e => { t.fail(e); })
       .toArray(a => {
-        // console.log(a);
+        arrayOfBuffers(a, t);
         t.equal(a.length, expectedLengths[3 - s],
           'number of buffers increases as expected.');
         t.equal(Buffer.concat(a).length, 9 + s,
@@ -153,3 +163,107 @@ for ( let s = 0 ; s < 4 ; s++ ) {
       });
   });
 }
+
+function isContiguous (b) {
+  if (b.length <= 1) return true;
+  for ( let x = 1 ; x < b.length ; x++ ) {
+    if (b[x] === 0) {
+      if (b[x - 1] !== 255)
+        return false;
+      continue;
+    }
+    if (b[x - 1] !== (b[x] - 1))
+      return false;
+  }
+  return true;
+}
+
+test('Three elements of various lengths', t => {
+  H(c)
+    .through(elementPipe(10, [
+      { start: 20, end: 30 },
+      { start: 105, end: 115 },
+      { start: 175, end: 375 }
+    ]))
+    .errors(e => { t.fail(e); })
+    .toArray(a => {
+      arrayOfBuffers(a, t);
+      t.deepEqual(a.map(x => x.length), [11, 5, 6, 35, 100, 66],
+        'lengths of arrays are as expected.');
+      let firstElement = a[0];
+      t.equal(firstElement[0], (20-10)%256,
+        'first element starts as expected.');
+      t.equal(firstElement.slice(-1)[0], (30-10)%256,
+        'first element ends as expected.');
+      t.ok(isContiguous(firstElement), 'first element is contiguous.');
+      let secondElement = Buffer.concat(a.slice(1, 3));
+      t.equal(secondElement[0], (105-10)%256,
+        'second element starts as expected.');
+      t.equal(secondElement.slice(-1)[0], (115-10)%256,
+        'second element ends as expected.');
+      t.ok(isContiguous(secondElement), 'second element is contigous.');
+      let thirdElement = Buffer.concat(a.slice(3));
+      t.equal(thirdElement[0], (175-10)%256,
+        'third element starts as expected.');
+      t.equal(thirdElement.slice(-1)[0], (375-10)%256,
+        'thrid element ends as expected.');
+      t.ok(isContiguous(thirdElement), 'third element is contiguous.');
+      t.end();
+    });
+});
+
+test('Element is complete block', t => {
+  H(c)
+    .through(elementPipe(0, [ { start: 0, end: 2047 }]))
+    .errors(e => { t.fail(e); })
+    .toArray(a => {
+      arrayOfBuffers(a, t);
+      t.deepEqual(a, c, 'input and output arrays are the same.');
+      t.ok(isContiguous(Buffer.concat(a)), 'values are continguous.');
+      t.end();
+    });
+});
+
+test('No elements in list', t => {
+  H(c)
+    .through(elementPipe(0, []))
+    .errors(e => { t.fail(e); })
+    .toArray(a => {
+      arrayOfBuffers(a, t);
+      t.ok(Array.isArray(a) && a.length === 0, 'produces nothing.');
+      t.end();
+    });
+});
+
+test('Handles ranges of zero and one byte', t => {
+  H(c)
+    .through(elementPipe(10, [
+      { start: 12, end: 12 },
+      { start: 42, end: 41 }
+    ]))
+    .errors(e => { t.fail(e); })
+    .toArray(a => {
+      arrayOfBuffers(a, t);
+      t.deepEqual(a, [ Buffer.from([0x02]), Buffer.from([]) ],
+        'produces the expected buffers.');
+      t.end();
+    });
+});
+
+test('Testing start range errors', t => {
+  t.throws(() => elementPipe(-10, []), /RangeError/,
+    'throws for negative position');
+  t.throws(() => elementPipe(10, [ { start: 9, end: 12 }]), /RangeError/,
+    'throws for start before position.');
+  t.throws(() => elementPipe(10, [ { start: 12, end: 9 }]), /RangeError/,
+    'throws for end before position.');
+  t.throws(() => elementPipe(10, [
+    { start: 12, end: 42 },
+    { start: 40, end: 77 }]
+  ), /RangeError/, 'throws for overlapping ranges.');
+  t.doesNotThrow(() => elementPipe(10, [ { start: 12, end: 12 }]), /RangeError/,
+    'does not throw for start and end the same.');
+  t.throws(() => elementPipe(10, [ { start: 12, end: 10 }]), /RangeError/,
+    'throws for end before start.');
+  t.end();
+});

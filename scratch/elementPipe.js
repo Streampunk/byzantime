@@ -16,6 +16,12 @@
 const H = require('highland');
 
 module.exports = function (position, elements) {
+  if (typeof position !== 'number' || position < 0) {
+    throw new RangeError('Starting position must be a number and less than zero.');
+  }
+  if (elements.some(el => el.start < position || el.end < position)) {
+    throw new RangeError('All elements must be beyond the start position.');
+  }
   if (elements.some(el => el.end - el.start < -1))
     throw new RangeError('All elements must have an end value beyond the start.');
   for ( let x = 1 ; x < elements.length ; x++ ) {
