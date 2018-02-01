@@ -13,31 +13,61 @@
   limitations under the License.
 */
 
+/* Given a folder of MXF files, the app treats each file as an element of
+   content. On first access, the app indexes the file, providing a cable
+   description and access to the elements of each contained flow via a
+   PTP timestamp and index.
+*/
+
 const express = require('express');
 const app = express();
-const fapp = express();
 const fs = require('fs');
 const util = require('util');
-var basePath = process.argv[2];
 const fsstat = util.promisify(fs.stat);
 const fsaccess = util.promisify(fs.access);
 const fsreaddir = util.promisify(fs.readdir);
+const path = require('path');
+const extractData = require('./lib/extractData.js');
 
-app.get('/', async (req, res) =>
+var argv = require('yargs').argv;
+const basePath = argv._[0];
+
+const fileDetails = new Map;
+
+app.get('/', async (req, res) => {
   try {
-    await 
+    let listing = await fsreaddir(basePath);
+    res.json(listing.filter(x => x.toLowerCase().endsWith('.mxf')));
   } catch (e) {
-
+    res.status(404);
+    res.json({ status: 404, error: e, message: e.message});
   }
-));
+});
+
+async function gatherDetails (fullPath) {
+  await fsaccess(fullPath, fs.R_OK);
+  let details = {
+    file: fullPath,
+    access: fs.R_OK
+  };
+  details.fileStat = await fsstat(fullPath);
+  ({ index: details.index, material: details.material,
+    indexing: details.indexing } = extractData(fullPath));
+  return details;
+}
 
 app.param('file', async (req, res, next, file) => {
-  req.file = basePath + '/' + file;
+  let fullPath = path.resolve(basePath, file);
   try {
-    await fsaccess(req.file, fs.R_OK);
-    var fileStat = await fsstat(req.file);
-    req.fileSize = fileStat.size;
-    console.log(`File ${req.file} has size ${req.fileSize}.`);
+    if (!fileDetails.get(fullPath)) {
+      fileDetails.set(fullPath, gatherDetails(fullPath));
+    }
+    req.fileDetails = await fileDetails.get(fullPath);
+    // console.log(req.fileDetails);
+    console.log(`File ${req.fileDetails.file} has size ${req.fileDetails.fileStat.size}.`);
+    // Start loading metadata
+    req.fileDetails.material.then(d => { console.log('Got file details', d); });
+    req.fileDetails.indexing.then(() => { console.log('Finished indexing.'); });
     next();
   } catch (e) {
     res.status(404);
@@ -45,8 +75,19 @@ app.param('file', async (req, res, next, file) => {
   }
 });
 
+const fapp = express.Router();
+
 app.use('/:file', fapp);
 
-fapp.get('/', (req, res) => res.json({ wibble: 42, params: req.file }));
+fapp.get('/', (req, res) => res.json(req.fileDetails));
+
+fapp.get('cable.json', async (req, res) => {
+  try {
+    res.json(await req.fileDetails.material);
+  } catch (e) {
+    res.status(404);
+    res.json({ status: 404, error : e, message: e.message });
+  }
+});
 
 app.listen(3000, () => console.log('Example app listening on port 3000!'));

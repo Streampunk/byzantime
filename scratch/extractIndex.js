@@ -30,7 +30,7 @@ var bodySID = 0;
 var tracks = new Map;
 var trackDescriptions = new Map;
 
-var ptpBase = x => (d => [ d / 1000 | 0, (d % 1000) * 1000000])(new Date(x))
+var ptpBase = x => (d => [ d / 1000 | 0, (d % 1000) * 1000000])(new Date(x));
 
 function makeID (pkid, trkID) {
   var hash = crypto.createHash('sha1');

@@ -15,7 +15,7 @@
 
 const test = require('tape');
 const H = require('highland');
-const elementPipe = require('../scratch/elementPipe.js');
+const elementPipe = require('../lib/elementPipe.js');
 
 const a = [];
 
