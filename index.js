@@ -29,6 +29,8 @@ const fsreaddir = util.promisify(fs.readdir);
 const path = require('path');
 const extractData = require('./lib/extractData.js');
 const { makeCable, formatPTP, ptpIndex } = require('./lib/cableUtils.js');
+const H = require('highland');
+const elementPipe = require('./lib/elementPipe.js');
 
 var argv = require('yargs').argv;
 const basePath = argv._[0];
@@ -177,7 +179,8 @@ fapp.get([
     let detail = {};
     detail[tsf] = {
       position: 0,
-      length: el.end - el.start + 1
+      length: el.end - el.start + 1,
+      type: 'raw'
     };
     return res.json(detail);
   }
@@ -199,10 +202,82 @@ fapp.get([
 });
 
 fapp.get([
+  '/:stream/:idxfrom(\\d+)-', // open ended
   '/:stream/:idxfrom(\\d+)-:idxto(\\d+)',
   '/:stream/:idxfrom(\\d+)-:idxto(\\d+).:fmt' ], (req, res) => {
 
-  res.json(req.params);
+  let [ fromidx, toidx ] = [ +req.params.idxfrom, +req.params.idxto ];
+  if (!isNaN(toidx) && toidx < fromidx) {
+    return res
+      .status(400)
+      .json({ status: 400, message: `Range cannot be backwards. Given ${fromidx}-${toidx}.`});
+  }
+  let index = req.fileDetails.index.get(req.stream.indexRef);
+
+  if (Array.isArray(index)) {
+    if (isNaN(toidx)) toidx = index.length - 1;
+    if (toidx >= index.length) {
+      if (req.fileDetails.indexed === false) {
+        return res.status(400).json({ status: 400, message: 'Still indexing.'});
+      } else {
+        return res
+          .status(405)
+          .set('Allow', '')
+          .json({ status: 405, message: `Requested index outside range 0-${index.length - 1}.`});
+      }
+    }
+  } else {
+    if (req.fileDetails.indexed === false) {
+      return res.status(400).json({ status: 400, message: 'Still indexing.'});
+    } else {
+      return res.status(500).json({ status: 400, message : 'Failed to index file.' });
+    }
+  }
+
+  let els = index.slice(fromidx, toidx + 1);
+
+  if (req.params.fmt === 'idx')
+    return res.json(els.reduce((acc, cur, i) => { acc[i] = cur; return acc;}, {}));
+
+  let ts = ptpIndex(req.stream.baseTime, fromidx, req.stream.description.SampleRate);
+  let tsf = formatPTP(ts);
+  if (req.params.fmt === 'json') {
+    let detail = {};
+    let position = 0;
+    for ( let [i, v] of els.entries() ) {
+      let elTs = ptpIndex(req.stream.baseTime, fromidx + i, req.stream.description.SampleRate);
+      let length = v.end - v.start + 1;
+      detail[formatPTP(elTs)] = {
+        position: position,
+        length: length,
+        type: 'raw'
+      };
+      position += length;
+    }
+    return res.json(detail);
+  }
+
+  res.set('Content-Length', els.reduce((acc, cur) => acc + (cur.end - cur.start + 1), 0));
+  res.set('Content-Type', 'application/octet-stream'); // TODO make real
+  res.set('Arachnid-PTPOrigin', tsf);
+  res.set('Arachnid-PTPSync', tsf); // TODO relate to material package
+  res.set('Arachnid-FlowID', req.stream.flowID);
+  res.set('Arachnid-SourceID', req.stream.sourceID);
+  res.set('Arachnid-GrainDuration',
+    `${req.stream.description.SampleRate[1]}/${req.stream.description.SampleRate[0]}`);
+  res.set('Arachnid-GrainCount', els.length);
+  let firstGap = els[0].end - els[0].start;
+  if (els.every(el => el.end - el.start === firstGap))
+    res.set('Arachnid-GrainSize', firstGap);
+  // TODO timecode, packing
+
+  H(fs.createReadStream(req.fileDetails.file,
+    {
+      start: els[0].start,
+      end: els.slice(-1)[0].end
+    }))
+    .through(elementPipe(els[0].start, els))
+    .pipe(res);
 });
 
 app.listen(3000, () => console.log('Example app listening on port 3000!'));
