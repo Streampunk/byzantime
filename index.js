@@ -28,6 +28,7 @@ const fsaccess = util.promisify(fs.access);
 const fsreaddir = util.promisify(fs.readdir);
 const path = require('path');
 const extractData = require('./lib/extractData.js');
+const { makeCable, formatPTP, ptpIndex } = require('./lib/cableUtils.js');
 
 var argv = require('yargs').argv;
 const basePath = argv._[0];
@@ -53,21 +54,44 @@ async function gatherDetails (fullPath) {
   details.fileStat = await fsstat(fullPath);
   ({ index: details.index, material: details.material,
     indexing: details.indexing } = extractData(fullPath));
+  details.material = details.material.then(makeCable);
   return details;
+}
+
+const fapp = express.Router();
+const streamTypes = [ 'video', 'audio' ];
+
+function addStreams (cable) {
+  let streams = new Map;
+  streamTypes.forEach(type => {
+    if (!Array.isArray(cable[type])) return;
+    for ( let [idx, el] of cable[type].entries() ) {
+      streams.set(el.name, el);
+      streams.set(el.flowID, el);
+      streams.set(`${type}[${idx}]`, el);
+    }
+  });
+  return streams;
 }
 
 app.param('file', async (req, res, next, file) => {
   let fullPath = path.resolve(basePath, file);
   try {
     if (!fileDetails.get(fullPath)) {
-      fileDetails.set(fullPath, gatherDetails(fullPath));
+      let gather = gatherDetails(fullPath);
+      fileDetails.set(fullPath, gather);
+      req.fileDetails = await gather;
+      console.log(`File ${req.fileDetails.file} has size ${req.fileDetails.fileStat.size}.`);
+      // Start loading metadata
+      // req.fileDetails.material.then(d => { console.log('Got file details', d); });
+      req.fileDetails.streams = req.fileDetails.material.then(addStreams);
+      req.fileDetails.indexed = false;
+      req.fileDetails.indexing.then(() => {
+        req.fileDetails.indexed = true;
+        console.log('Finished indexing', fullPath); });
+    } else {
+      req.fileDetails = await fileDetails.get(fullPath);
     }
-    req.fileDetails = await fileDetails.get(fullPath);
-    // console.log(req.fileDetails);
-    console.log(`File ${req.fileDetails.file} has size ${req.fileDetails.fileStat.size}.`);
-    // Start loading metadata
-    req.fileDetails.material.then(d => { console.log('Got file details', d); });
-    req.fileDetails.indexing.then(() => { console.log('Finished indexing.'); });
     next();
   } catch (e) {
     res.status(404);
@@ -75,19 +99,110 @@ app.param('file', async (req, res, next, file) => {
   }
 });
 
-const fapp = express.Router();
-
 app.use('/:file', fapp);
 
 fapp.get('/', (req, res) => res.json(req.fileDetails));
 
-fapp.get('cable.json', async (req, res) => {
+fapp.get('/cable.json', async (req, res) => {
   try {
     res.json(await req.fileDetails.material);
   } catch (e) {
     res.status(404);
     res.json({ status: 404, error : e, message: e.message });
   }
+});
+
+fapp.param('stream', async (req, res, next, stream) => {
+  try {
+    let streams = await req.fileDetails.streams;
+    req.stream = streams.get(stream);
+    if (!stream) throw new Error(`Stream ${stream} not available for ${req.fileDetails.fullPath}.`);
+    next();
+  } catch (e) {
+    res.status(404);
+    res.json({ status: 404, error : e, message: e.message });
+  }
+});
+
+fapp.get('/:stream/wire.json', (req, res) => {
+  res.json(req.stream);
+});
+
+fapp.get([
+  '/:stream/:ptp(\\d+:\\d+)',
+  '/:stream/:ptp(\\d+:\\d+).:fmt' ], (req, res) => {
+
+  res.json(req.params);
+});
+
+fapp.get([
+  '/:stream/:ptpfrom(\\d+:\\d+)-:ptpto(\\d+:\\d+)',
+  '/:stream/:ptpfrom(\\d+:\\d+)-:ptpto(\\d+:\\d+).:fmt' ], (req, res) => {
+
+  res.json(req.params);
+});
+
+fapp.get([
+  '/:stream/:idx(\\d+)',
+  '/:stream/:idx(\\d+).:fmt' ], (req, res) => {
+
+  let index = req.fileDetails.index.get(req.stream.indexRef);
+  let elIdx = +req.params.idx;
+  if (Array.isArray(index)) {
+    if (elIdx >= index.length) {
+      if (req.fileDetails.indexed === false) {
+        return res.status(400).json({ status: 400, message: 'Still indexing.'});
+      } else {
+        return res
+          .status(405)
+          .set('Allow', '')
+          .json({ status: 405, message: `Requested index outside range 0-${index.length - 1}.`});
+      }
+    }
+  } else {
+    if (req.fileDetails.indexed === false) {
+      return res.status(400).json({ status: 400, message: 'Still indexing.'});
+    } else {
+      return res.status(500).json({ status: 400, message : 'Failed to index file.' });
+    }
+  }
+
+  let el = index[elIdx];
+  if (req.params.fmt === 'idx')
+    return res.json({ 0 : el });
+
+  let ts = ptpIndex(req.stream.baseTime, elIdx, req.stream.description.SampleRate);
+  let tsf = formatPTP(ts);
+  if (req.params.fmt === 'json') {
+    let detail = {};
+    detail[tsf] = {
+      position: 0,
+      length: el.end - el.start + 1
+    };
+    return res.json(detail);
+  }
+
+  res.set('Content-Length', el.end - el.start + 1);
+  res.set('Content-Type', 'application/octet-stream'); // TODO make real
+  res.set('Arachnid-PTPOrigin', tsf);
+  res.set('Arachnid-PTPSync', tsf); // TODO relate to material package
+  res.set('Arachnid-FlowID', req.stream.flowID);
+  res.set('Arachnid-SourceID', req.stream.sourceID);
+  res.set('Arachnid-GrainDuration',
+    `${req.stream.description.SampleRate[1]}/${req.stream.description.SampleRate[0]}`);
+  // TODO timecode, packing
+
+  fs.createReadStream(req.fileDetails.file, {
+    start: el.start,
+    end: el.end,
+  }).pipe(res);
+});
+
+fapp.get([
+  '/:stream/:idxfrom(\\d+)-:idxto(\\d+)',
+  '/:stream/:idxfrom(\\d+)-:idxto(\\d+).:fmt' ], (req, res) => {
+
+  res.json(req.params);
 });
 
 app.listen(3000, () => console.log('Example app listening on port 3000!'));
