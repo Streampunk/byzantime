@@ -28,7 +28,7 @@ const fsaccess = util.promisify(fs.access);
 const fsreaddir = util.promisify(fs.readdir);
 const path = require('path');
 const extractData = require('./lib/extractData.js');
-const { makeCable, formatPTP, ptpIndex } = require('./lib/cableUtils.js');
+const { makeCable, formatPTP, ptpIndex, fuzzyIndex } = require('./lib/cableUtils.js');
 const H = require('highland');
 const elementPipe = require('./lib/elementPipe.js');
 
@@ -130,24 +130,7 @@ fapp.get('/:stream/wire.json', (req, res) => {
   res.json(req.stream);
 });
 
-fapp.get([
-  '/:stream/:ptp(\\d+:\\d+)',
-  '/:stream/:ptp(\\d+:\\d+).:fmt' ], (req, res) => {
-
-  res.json(req.params);
-});
-
-fapp.get([
-  '/:stream/:ptpfrom(\\d+:\\d+)-:ptpto(\\d+:\\d+)',
-  '/:stream/:ptpfrom(\\d+:\\d+)-:ptpto(\\d+:\\d+).:fmt' ], (req, res) => {
-
-  res.json(req.params);
-});
-
-fapp.get([
-  '/:stream/:idx(\\d+)',
-  '/:stream/:idx(\\d+).:fmt' ], (req, res) => {
-
+const singleGrain = (req, res) => {
   let index = req.fileDetails.index.get(req.stream.indexRef);
   let elIdx = +req.params.idx;
   if (Array.isArray(index)) {
@@ -193,19 +176,16 @@ fapp.get([
   res.set('Arachnid-SourceID', req.stream.sourceID);
   res.set('Arachnid-GrainDuration',
     `${req.stream.description.SampleRate[1]}/${req.stream.description.SampleRate[0]}`);
+  res.set('Arachnid-GrainCount', 1);
   // TODO timecode, packing
 
   fs.createReadStream(req.fileDetails.file, {
     start: el.start,
     end: el.end,
   }).pipe(res);
-});
+};
 
-fapp.get([
-  '/:stream/:idxfrom(\\d+)-', // open ended
-  '/:stream/:idxfrom(\\d+)-:idxto(\\d+)',
-  '/:stream/:idxfrom(\\d+)-:idxto(\\d+).:fmt' ], (req, res) => {
-
+const grainRange = (req, res) => {
   let [ fromidx, toidx ] = [ +req.params.idxfrom, +req.params.idxto ];
   if (!isNaN(toidx) && toidx < fromidx) {
     return res
@@ -268,7 +248,7 @@ fapp.get([
   res.set('Arachnid-GrainCount', els.length);
   let firstGap = els[0].end - els[0].start;
   if (els.every(el => el.end - el.start === firstGap))
-    res.set('Arachnid-GrainSize', firstGap);
+    res.set('Arachnid-GrainSize', firstGap + 1);
   // TODO timecode, packing
 
   H(fs.createReadStream(req.fileDetails.file,
@@ -278,6 +258,47 @@ fapp.get([
     }))
     .through(elementPipe(els[0].start, els))
     .pipe(res);
+};
+
+fapp.get([
+  '/:stream/:ptp(\\d+:\\d+)',
+  '/:stream/:ptp(\\d+:\\d+).:fmt' ], (req, res) => {
+
+  req.params.idx = fuzzyIndex(req.stream.baseTime, req.params.ptp,
+    req.stream.description.SampleRate);
+  if (req.params.idx < 0) {
+    return res
+      .status(410)
+      .json({ status: 410, message: `Given time stamp ${req.params.ptp} is ${-req.params.idx} grains before the start of the material.`});
+  }
+  return singleGrain(req, res);
 });
+
+fapp.get([
+  '/:stream/:ptpfrom(\\d+:\\d+)-',
+  '/:stream/:ptpfrom(\\d+:\\d+)-:ptpto(\\d+:\\d+)',
+  '/:stream/:ptpfrom(\\d+:\\d+)-:ptpto(\\d+:\\d+).:fmt' ], (req, res) => {
+
+  req.params.idxfrom = fuzzyIndex(req.stream.baseTime, req.params.ptpfrom,
+    req.stream.description.SampleRate);
+  req.params.idxto = req.params.ptpto ?
+    fuzzyIndex(req.stream.baseTime, req.params.ptpto,
+      req.stream.description.SampleRate) : undefined;
+  if (req.params.idxfrom < 0) {
+    return res
+      .status(410)
+      .json({ status: 410, message: `Given time stamp ${req.params.ptp} is ${-req.params.idx} grains before the start of the material.`});
+  }
+  return grainRange(req, res);
+});
+
+fapp.get([
+  '/:stream/:idx(\\d+)',
+  '/:stream/:idx(\\d+).:fmt' ], singleGrain);
+
+fapp.get([
+  '/:stream/:idxfrom(\\d+)-', // open ended
+  '/:stream/:idxfrom(\\d+)-:idxto(\\d+)',
+  '/:stream/:idxfrom(\\d+)-:idxto(\\d+).:fmt' ], grainRange);
 
 app.listen(3000, () => console.log('Example app listening on port 3000!'));
