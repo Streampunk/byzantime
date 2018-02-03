@@ -1,11 +1,166 @@
 # byzantime
 REST API for access to parts of professional media files by media timing reference, mapping between bytes and time, hence _byzantime_.
 
-Currently a quick hack project to see how easy it is to use the Streampunk [kelvinadon](https://github.com/Streampunk/kelvinadon) MXF streaming library to create a REST API for accessing data in an MXF file.
+This is a quick hack project to demonstrate how easy it is to use the Streampunk [kelvinadon](https://github.com/Streampunk/kelvinadon) MXF streaming library to create a RESTful API for accessing data in an MXF file. The RESTful API exposed is an example of the _bytes-to-time unwrap API_ illustrated as part of the [_Infinite Capacity Media Machine_](https://twitter.com/hashtag/InfCapMediaMachine?src=hash) and may form an input into the design of the _Content API_.
+
+## Usage
+
+### Installation
+
+This is a [Node.JS](https://nodejs.org) project prepared for a recent LTS version v8.9.3 of node. A number of the latest ES6 features are used (async/await, generators) and so an up-to-date version of node is required.
+
+Install this project using a git clone and run npm install to download the dependencies:
+
+    git clone https://github.com/Streampunk/byzantime
+    cd byzantime
+    npm install
+
+It is likely that byzantime will be published to NPM at some point so that if can be used as an installed application.
+
+### Running
+
+Byzantime assumes that you have a folder full of MXF files that you would like to access the elements of over RESTful paths. For example, `/media/my_mxf_files/`. In future, this could be updated to be a hierarchy of folders or an S3-style bucket containing MXF files. To run the server:
+
+    node index.js /media/my_mxf_files
+
+The server runs on port `3000`. Future versions will included a configuration parameter to set this.
+
+### Things to try
+
+Here is a typical pattern of requests you might like to make. The examples here are based on a folder containing [GrassValley's example MXF files](http://www.gvgdevelopers.com/concrete/products/k2/test_clips/).
+
+#### List all the files
+
+`http://localhost:3000`
+
+```JSON
+[
+"NTSC_1080i_AVC-I_colorbar.mxf",
+"NTSC_1080i_DVCPRO_HD_colorbar.mxf",
+"NTSC_1080i_MPEG_IFrame_colorbar.mxf",
+"NTSC_1080i_MPEG_LGOP_colorbar.mxf",
+"NTSC_1080i_MPEG_XDCAM-EX_colorbar.mxf",
+
+]
+```
+
+#### Details of a file (debug use only)
+
+Basic fsstat details for the file.
+
+`http://localhost:3000/NTSC_1080i_MPEG_LGOP_colorbar.mxf`
+
+```JSON
+{
+"file": "/Volumes/Ormiscraid/media/streampunk/gv/NTSC_1080i_MPEG_LGOP_colorbar.mxf",
+"access": 4,
+"fileStat": {
+"dev": 16777225,
+"mode": 33188,
+"nlink": 1,
+"uid": 501,
+"gid": 20,
+"rdev": 0,
+"blksize": 4096,
+"ino": 81301897,
+"size": 24888904,
+"blocks": 48616,
+"atimeMs": 1517608385000,
+"mtimeMs": 1466028033000,
+"ctimeMs": 1466028033000,
+"birthtimeMs": 1466027475000,
+"atime": "2018-02-02T21:53:05.000Z",
+"mtime": "2016-06-15T22:00:33.000Z",
+"ctime": "2016-06-15T22:00:33.000Z",
+"birthtime": "2016-06-15T21:51:15.000Z"
+},
+"index": {},
+"material": {},
+"indexing": {},
+"streams": {},
+"indexed": true
+}
+```
+
+#### View the file as a cable
+
+The Infinite Capacity Media Machine considers all content sources to be a kind of _logical cable_ that can be plugged into a number of destinations. The _cable_ (derived from the MXF _material package_) contains a number of _wires_ (MXF _tracks_) of different types, some video, some audio, some event-based and some data. Each wire has an NMOS flow ID, source ID, name and technical description. The technical description used here is a JSON serialization of the SMPTE EssenceDescription associated with each wire.
+
+The `start` time is the PTP value of the creation time of the associated source package and all timestamps for the derived streams start counting up from this value.
+
+`http://localhost:3000/NTSC_1080i_MPEG_LGOP_colorbar.mxf/cable.json`
+
+```json
+{
+"id": "2e1b3bc6-5614-141e-4fe7-00b00901b339",
+"video": [
+{
+"flowID": "5e527be0-382f-5589-af5e-92f06ed601d7",
+"sourceID": "3519f87d-489c-528d-91d2-61e7839c22e7",
+"name": "video_19",
+"tags": {
+"grainDuration": [
+1001,
+30000
+]
+},
+"start": "1293542953:768000000",
+"baseTime": [
+1293542953,
+768000000
+],
+"description": {
+"ObjectClass": "MPEGVideoDescriptor",
+"InstanceID": "2e1bb2cc-5614-141e-1d2f-00b00901b339",
+"LinkedTrackID": 19,
+"SampleRate": [
+30000,
+1001
+],
+"ContainerFormat": "MXFGCFrameWrappedMPEGESVideoStream0SID",
+"FrameLayout": "SeparateFields",
+"StoredWidth": 1920,
+"StoredHeight": 544,
+"StoredF2Offset": 0,
+"SampledWidth": 1920,
+"SampledHeight": 544,
+"SampledXOffset": 0,
+"SampledYOffset": 0,
+"DisplayHeight": 540,
+"DisplayWidth": 1920,
+"DisplayXOffset": 0,
+"DisplayYOffset": 0,
+"DisplayF2Offset": 0,
+"ImageAspectRatio": [
+16,
+9
+],
+"ActiveFormatDescriptor": 0,
+"VideoLineMap": [
+21,
+584
+],
+"PictureCompression": "MPEG2422PHLLongGOP",
+"ComponentDepth": 8,
+"HorizontalSubsampling": 2,
+"VerticalSubsampling": 1,
+"ClosedGOP": true,
+"MaxGOP": 15,
+"MaxBPictureCount": 2,
+"ProfileAndLevel": 130,
+"BitRate": 25000000
+},
+"indexRef": "2-15010500"
+}
+],
+"audio": [ ]
+}
+```
+
 
 ## Status, support and further development
 
-This is prototype software that is not yet suitable for production use. The software a hack project and may stop of be deleted at any time.
+This is prototype software that is not yet suitable for production use. The software is a hack project and may stop of be deleted at any time.
 
 Contributions can be made via pull requests and will be considered by the author on their merits. Enhancement requests and bug reports should be raised as github issues. For support, please contact [Streampunk Media](https://www.streampunk.media/). For updates follow [@StrmPunkd](https://twitter.com/StrmPunkd) on Twitter.
 
