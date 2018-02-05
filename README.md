@@ -3,6 +3,13 @@ REST API for access to parts of professional media files by media timing referen
 
 This is a quick hack project to demonstrate how easy it is to use the Streampunk [kelvinadon](https://github.com/Streampunk/kelvinadon) MXF streaming library to create a RESTful API for accessing data in an MXF file. The RESTful API exposed is an example of the _bytes-to-time unwrap API_ illustrated as part of the [_Infinite Capacity Media Machine_](https://twitter.com/hashtag/InfCapMediaMachine?src=hash) and may form an input into the design of the _Content API_.
 
+In summary, if you have an MXF file then its content is exposed via URLs like:
+
+* <http://server.com/my_file.mxf/cable.json> - data about the elementary streams, including flow IDs, source IDs, start timestamp and technical description.
+* <http://server.com/my_file.mxf/video_0/wire.json> - details about the first video track. Can be accessed by array index, track name or flow ID.
+* <http://server.com/my_file,mxf/video[0]/12345678:040000000.raw> - Access to the raw data stored inside the MXF file by PTP timestamp for the given timestamp, relative to the material package creation time.
+* <https://server.com/my_file.mxf/audio[1]/0-419.raw> - Access to the first 420 grains-worth of audio on audio track 1.
+
 ## Usage
 
 ### Installation
@@ -35,12 +42,12 @@ Here is a typical pattern of requests you might like to make. The examples here 
 
 ```JSON
 [
-"NTSC_1080i_AVC-I_colorbar.mxf",
-"NTSC_1080i_DVCPRO_HD_colorbar.mxf",
-"NTSC_1080i_MPEG_IFrame_colorbar.mxf",
-"NTSC_1080i_MPEG_LGOP_colorbar.mxf",
-"NTSC_1080i_MPEG_XDCAM-EX_colorbar.mxf",
-
+  "NTSC_1080i_AVC-I_colorbar.mxf",
+  "NTSC_1080i_DVCPRO_HD_colorbar.mxf",
+  "NTSC_1080i_MPEG_IFrame_colorbar.mxf",
+  "NTSC_1080i_MPEG_LGOP_colorbar.mxf",
+  "NTSC_1080i_MPEG_XDCAM-EX_colorbar.mxf",
+  " ... more MXF files ..."
 ]
 ```
 
@@ -52,33 +59,33 @@ Basic fsstat details for the file.
 
 ```JSON
 {
-"file": "/Volumes/Ormiscraid/media/streampunk/gv/NTSC_1080i_MPEG_LGOP_colorbar.mxf",
-"access": 4,
-"fileStat": {
-"dev": 16777225,
-"mode": 33188,
-"nlink": 1,
-"uid": 501,
-"gid": 20,
-"rdev": 0,
-"blksize": 4096,
-"ino": 81301897,
-"size": 24888904,
-"blocks": 48616,
-"atimeMs": 1517608385000,
-"mtimeMs": 1466028033000,
-"ctimeMs": 1466028033000,
-"birthtimeMs": 1466027475000,
-"atime": "2018-02-02T21:53:05.000Z",
-"mtime": "2016-06-15T22:00:33.000Z",
-"ctime": "2016-06-15T22:00:33.000Z",
-"birthtime": "2016-06-15T21:51:15.000Z"
-},
-"index": {},
-"material": {},
-"indexing": {},
-"streams": {},
-"indexed": true
+   "file" : "/Volumes/raid/media/streampunk/gv/NTSC_1080i_MPEG_LGOP_colorbar.mxf",
+   "material" : {},
+   "index" : {},
+   "indexed" : true,
+   "indexing" : {},
+   "access" : 4,
+   "fileStat" : {
+      "blocks" : 48616,
+      "ctimeMs" : 1466028033000,
+      "atime" : "2018-02-02T21:53:05.000Z",
+      "birthtimeMs" : 1466027475000,
+      "blksize" : 4096,
+      "dev" : 16777225,
+      "ctime" : "2016-06-15T22:00:33.000Z",
+      "mtime" : "2016-06-15T22:00:33.000Z",
+      "mode" : 33188,
+      "rdev" : 0,
+      "mtimeMs" : 1466028033000,
+      "size" : 24888904,
+      "uid" : 501,
+      "nlink" : 1,
+      "ino" : 81301897,
+      "atimeMs" : 1517608385000,
+      "birthtime" : "2016-06-15T21:51:15.000Z",
+      "gid" : 20
+   },
+   "streams" : {}
 }
 ```
 
@@ -90,70 +97,70 @@ The `start` time is the PTP value of the creation time of the associated source 
 
 `http://localhost:3000/NTSC_1080i_MPEG_LGOP_colorbar.mxf/cable.json`
 
-```json
+```JSON
 {
-"id": "2e1b3bc6-5614-141e-4fe7-00b00901b339",
-"video": [
-{
-"flowID": "5e527be0-382f-5589-af5e-92f06ed601d7",
-"sourceID": "3519f87d-489c-528d-91d2-61e7839c22e7",
-"name": "video_19",
-"tags": {
-"grainDuration": [
-1001,
-30000
-]
-},
-"start": "1293542953:768000000",
-"baseTime": [
-1293542953,
-768000000
-],
-"description": {
-"ObjectClass": "MPEGVideoDescriptor",
-"InstanceID": "2e1bb2cc-5614-141e-1d2f-00b00901b339",
-"LinkedTrackID": 19,
-"SampleRate": [
-30000,
-1001
-],
-"ContainerFormat": "MXFGCFrameWrappedMPEGESVideoStream0SID",
-"FrameLayout": "SeparateFields",
-"StoredWidth": 1920,
-"StoredHeight": 544,
-"StoredF2Offset": 0,
-"SampledWidth": 1920,
-"SampledHeight": 544,
-"SampledXOffset": 0,
-"SampledYOffset": 0,
-"DisplayHeight": 540,
-"DisplayWidth": 1920,
-"DisplayXOffset": 0,
-"DisplayYOffset": 0,
-"DisplayF2Offset": 0,
-"ImageAspectRatio": [
-16,
-9
-],
-"ActiveFormatDescriptor": 0,
-"VideoLineMap": [
-21,
-584
-],
-"PictureCompression": "MPEG2422PHLLongGOP",
-"ComponentDepth": 8,
-"HorizontalSubsampling": 2,
-"VerticalSubsampling": 1,
-"ClosedGOP": true,
-"MaxGOP": 15,
-"MaxBPictureCount": 2,
-"ProfileAndLevel": 130,
-"BitRate": 25000000
-},
-"indexRef": "2-15010500"
-}
-],
-"audio": [ ]
+   "audio" : [],
+   "id" : "2e1b3bc6-5614-141e-4fe7-00b00901b339",
+   "video" : [
+      {
+         "flowID" : "5e527be0-382f-5589-af5e-92f06ed601d7",
+         "tags" : {
+            "grainDuration" : [
+               1001,
+               30000
+            ]
+         },
+         "start" : "1293542953:768000000",
+         "baseTime" : [
+            1293542953,
+            768000000
+         ],
+         "sourceID" : "3519f87d-489c-528d-91d2-61e7839c22e7",
+         "indexRef" : "2-15010500",
+         "description" : {
+            "ContainerFormat" : "MXFGCFrameWrappedMPEGESVideoStream0SID",
+            "FrameLayout" : "SeparateFields",
+            "InstanceID" : "2e1bb2cc-5614-141e-1d2f-00b00901b339",
+            "DisplayF2Offset" : 0,
+            "PictureCompression" : "MPEG2422PHLLongGOP",
+            "StoredF2Offset" : 0,
+            "MaxBPictureCount" : 2,
+            "SampledWidth" : 1920,
+            "ObjectClass" : "MPEGVideoDescriptor",
+            "ProfileAndLevel" : 130,
+            "HorizontalSubsampling" : 2,
+            "VerticalSubsampling" : 1,
+            "DisplayWidth" : 1920,
+            "SampledHeight" : 544,
+            "ComponentDepth" : 8,
+            "BitRate" : 25000000,
+            "MaxGOP" : 15,
+            "LinkedTrackID" : 19,
+            "DisplayXOffset" : 0,
+            "VideoLineMap" : [
+               21,
+               584
+            ],
+            "SampledYOffset" : 0,
+            "SampleRate" : [
+               30000,
+               1001
+            ],
+            "StoredHeight" : 544,
+            "StoredWidth" : 1920,
+            "ImageAspectRatio" : [
+               16,
+               9
+            ],
+            "DisplayHeight" : 540,
+            "ActiveFormatDescriptor" : 0,
+            "ClosedGOP" : true,
+            "SampledXOffset" : 0,
+            "DisplayYOffset" : 0
+         },
+         "name" : "video_19"
+      }
+   ]
 }
 ```
 
