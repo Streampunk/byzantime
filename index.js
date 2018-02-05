@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /* Copyright 2018 Streampunk Media Ltd.
 
   Licensed under the Apache License, Version 2.0 (the "License");
@@ -32,8 +33,17 @@ const { makeCable, formatPTP, ptpIndex, fuzzyIndex } = require('./lib/cableUtils
 const H = require('highland');
 const elementPipe = require('./lib/elementPipe.js');
 
-var argv = require('yargs').argv;
-const basePath = argv._[0];
+var argv = require('yargs')
+  .default('p', 3000)
+  .number('p')
+  .describe('p', 'Port to run the server on.')
+  .demandCommand(1)
+  .help()
+  .usage('$0 <folder_of_mxfs>',
+    'Start an HTTP server giving access to MXF files in the given folder.')
+  .argv;
+const basePath = argv.folder_of_mxfs;
+const port = argv.p;
 
 const fileDetails = new Map;
 
@@ -222,16 +232,17 @@ const grainRange = (req, res) => {
   let ts = ptpIndex(req.stream.baseTime, fromidx, req.stream.description.SampleRate);
   let tsf = formatPTP(ts);
   if (req.params.fmt === 'json') {
-    let detail = {};
+    let detail = [];
     let position = 0;
     for ( let [i, v] of els.entries() ) {
       let elTs = ptpIndex(req.stream.baseTime, fromidx + i, req.stream.description.SampleRate);
       let length = v.end - v.start + 1;
-      detail[formatPTP(elTs)] = {
+      detail.push({
+        timestamp: formatPTP(elTs),
         position: position,
         length: length,
         type: 'raw'
-      };
+      });
       position += length;
     }
     return res.json(detail);
@@ -301,4 +312,15 @@ fapp.get([
   '/:stream/:idxfrom(\\d+)-:idxto(\\d+)',
   '/:stream/:idxfrom(\\d+)-:idxto(\\d+).:fmt' ], grainRange);
 
-app.listen(3000, () => console.log('Example app listening on port 3000!'));
+app.use((req, res, next) => { // Have to pass in next for express to work
+  console.log(`Fell through express. Request ${req.path} is unhandled.`);
+  res.status(404).json({
+    code : 404,
+    error : `Could not find the requested resource '${req.path}'.`,
+    debug : req.path
+  });
+  if (next == false) next();
+});
+
+
+app.listen(port, () => console.log(`Example app listening on port ${port}!`));

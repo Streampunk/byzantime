@@ -1,6 +1,6 @@
 {
   "name": "byzantime",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "REST API for access to parts of professional media files by media timing reference.",
   "main": "index.js",
   "scripts": {
@@ -34,5 +34,8 @@
     "eslint": "^4.9.0",
     "eslint-config-google": "^0.9.1",
     "tape": "^4.8.0"
+  },
+  "bin": {
+    "byzantime": "./index.js"
   }
 }
