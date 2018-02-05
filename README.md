@@ -209,6 +209,8 @@ For example, access the 42nd frame in our example file:
 { [7424 bytes data]
 ```
 
+Note that `Content-Type` is fixed as `application/octet-stream` and will be enhanced in the future more precisely describe the body.
+
 Too access a range of grains, use an inclusive range e.g. `42-47.raw`. For some codecs, the grains are of different byte lengths. To find the start of each grain within the data returned, use `.json` instead of `.raw`.
 
 `http://localhost:3000/NTSC_1080i_MPEG_LGOP_colorbar.mxf/video_19/42-47.json`
@@ -289,7 +291,7 @@ For time references, PTP references start at the creation time of the material p
 
 ## Status, support and further development
 
-This is prototype software that is not yet suitable for production use. The software is a hack project and may stop of be deleted at any time.
+This is prototype software that is not yet suitable for production use. The software is a hack project and may stop of be deleted at any time. It is hoped to extend the API to include support for IMF bundles and writing MXF files.
 
 Contributions can be made via pull requests and will be considered by the author on their merits. Enhancement requests and bug reports should be raised as github issues. For support, please contact [Streampunk Media](https://www.streampunk.media/). For updates follow [@StrmPunkd](https://twitter.com/StrmPunkd) on Twitter.
 
